@@ -1,46 +1,35 @@
-from flask import Flask, request, render_template
-from gpiozero import Motor, PWMOutputDevice
-
-# Настройка моторов
-motor1 = Motor(17, 27)  # Первый мотор: IN1 и IN2
-motor2 = Motor(22, 23)  # Второй мотор: IN3 и IN4
-
-ena = PWMOutputDevice(12)  # ENA для первого мотора (скорость)
-enb = PWMOutputDevice(13)  # ENB для второго мотора (скорость)
+from flask import Flask, request
+import RPi.GPIO as GPIO
 
 app = Flask(__name__)
 
-# Главная страница сайта
-@app.route('/')
-def index():
-    return render_template('index.html')
+# Настройка GPIO
+GPIO.setmode(GPIO.BCM)
+motor_pins = {
+    'forward': 17,
+    'backward': 18,
+    'left': 27,
+    'right': 22,
+    'stop': 23
+}
 
-# Обработка команд управления
-@app.route('/control', methods=['POST'])
-def control():
-    command = request.form.get('command')
+# Настройка пинов для моторов
+for pin in motor_pins.values():
+    GPIO.setup(pin, GPIO.OUT)
 
-    if command == 'forward':
-        ena.value = 1
-        enb.value = 1
-        motor1.forward()
-        motor2.forward()
-    elif command == 'backward':
-        ena.value = 1
-        enb.value = 1
-        motor1.backward()
-        motor2.backward()
-    elif command == 'left':
-        motor1.stop()
-        motor2.forward()
-    elif command == 'right':
-        motor1.forward()
-        motor2.stop()
-    elif command == 'stop':
-        motor1.stop()
-        motor2.stop()
+@app.route('/move', methods=['POST'])
+def move():
+    direction = request.form.get('direction')
+    if direction in motor_pins:
+        GPIO.output(motor_pins[direction], GPIO.HIGH)
+        return 'Motor moving ' + direction, 200
+    return 'Invalid direction', 400
 
-    return 'OK', 200
+@app.route('/stop', methods=['POST'])
+def stop():
+    for pin in motor_pins.values():
+        GPIO.output(pin, GPIO.LOW)
+    return 'All motors stopped', 200
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000)
+    app.run(host='0.0.0.0', port=5000)  # Убедитесь, что хост и порт указаны правильно
