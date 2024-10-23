@@ -21,6 +21,7 @@
         const socket = io();
 
         function sendCommand(action) {
+            console.log(`Отправка команды: ${action}`);  // Отладочная информация
             socket.emit('command', { action: action });
         }
 
@@ -46,7 +47,7 @@
             }
         });
 
-        // Обработка отпускания клавиш
+        // Остановка машины при отпускании клавиши
         document.addEventListener('keyup', function(event) {
             // Остановка машины при отпускании любой клавиши
             sendCommand('stop');
