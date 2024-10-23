@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mallard RC Control</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+</head>
+<body>
+    <h1>Управление RC машинкой</h1>
+    <img src="/video_feed" width="640" height="480">
+    <div>
+        <button onclick="sendCommand('forward')">Вперед</button>
+        <button onclick="sendCommand('backward')">Назад</button>
+        <button onclick="sendCommand('left')">Влево</button>
+        <button onclick="sendCommand('right')">Вправо</button>
+        <button onclick="sendCommand('stop')">Стоп</button>
+    </div>
+
+    <script>
+        const socket = io();
+
+        function sendCommand(action) {
+            socket.emit('command', { action: action });
+        }
+    </script>
+</body>
+</html>
