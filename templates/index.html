@@ -8,7 +8,7 @@
 </head>
 <body>
     <h1>Управление RC машинкой</h1>
-    <img id="video" src="/video_feed" width="640" height="480" alt="Video feed">
+    <img id="video" width="640" height="480" alt="Video feed">
     <div>
         <button onclick="sendCommand('forward')">Вперед</button>
         <button onclick="sendCommand('backward')">Назад</button>
@@ -20,8 +20,12 @@
     <script>
         const socket = io();
 
+        // Обновление изображения с видеопотока
+        socket.on('video_frame', function(data) {
+            document.getElementById('video').src = 'data:image/jpeg;base64,' + data.data;
+        });
+
         function sendCommand(action) {
-            console.log(`Отправка команды: ${action}`);  // Отладочная информация
             socket.emit('command', { action: action });
         }
 
@@ -49,15 +53,8 @@
 
         // Остановка машины при отпускании клавиши
         document.addEventListener('keyup', function(event) {
-            // Остановка машины при отпускании любой клавиши
             sendCommand('stop');
         });
-
-        // Проверка, загружается ли изображение
-        const videoElement = document.getElementById('video');
-        videoElement.onerror = function() {
-            console.error("Ошибка загрузки видео");
-        };
     </script>
 </body>
 </html>
