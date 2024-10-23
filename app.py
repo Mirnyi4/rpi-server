@@ -1,9 +1,9 @@
-import subprocess
+import cv2
 import numpy as np
-from flask import Flask, render_template, Response
+from flask import Flask, render_template
 from flask_socketio import SocketIO
 from gpiozero import Motor, PWMOutputDevice
-import cv2
+import base64
 
 # Настраиваем Flask и веб-сокеты
 app = Flask(__name__)
@@ -20,28 +20,29 @@ enb = PWMOutputDevice(13)
 def index():
     return render_template('index.html')
 
-# Генератор видео-потока
-def gen():
-    process = subprocess.Popen(
-        ['libcamera-vid', '--inline', '--width', '640', '--height', '480', '--framerate', '30', '--output', 'stdout'],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE
-    )
-    
-    while True:
-        raw_frame = process.stdout.read(640 * 480 * 3)  # Чтение одного кадра
-        if len(raw_frame) != 640 * 480 * 3:
-            print("Недостаточно данных для кадра, пропускаем...")
-            continue
-        frame = np.frombuffer(raw_frame, dtype=np.uint8).reshape((480, 640, 3))
-        _, buffer = cv2.imencode('.jpg', frame)
-        frame_data = buffer.tobytes()
-        yield (b'--frame\r\n'
-               b'Content-Type: image/jpeg\r\n\r\n' + frame_data + b'\r\n')
+# Отправка видео через веб-сокеты
+def send_video():
+    cap = cv2.VideoCapture(0)  # Используйте '0' для первой камеры
 
-@app.route('/video_feed')
-def video_feed():
-    return Response(gen(), mimetype='multipart/x-mixed-replace; boundary=frame')
+    while cap.isOpened():
+        ret, frame = cap.read()
+        if not ret:
+            break
+
+        # Кодируем кадр в JPEG
+        _, buffer = cv2.imencode('.jpg', frame)
+        frame_data = base64.b64encode(buffer).decode('utf-8')
+        
+        # Отправляем кадр через веб-сокет
+        socketio.emit('video_frame', {'data': frame_data})
+        socketio.sleep(0.03)  # Уменьшаем частоту передачи (примерно 30 fps)
+
+    cap.release()
+
+# Запуск потока видео в фоновом режиме
+@socketio.on('connect')
+def handle_connect():
+    socketio.start_background_task(send_video)
 
 # Обработка команд управления через веб-сокеты
 @socketio.on('command')
