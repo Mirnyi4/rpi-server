@@ -1,35 +1,61 @@
-from flask import Flask, request
-import RPi.GPIO as GPIO
+from flask import Flask, render_template, Response
+from flask_socketio import SocketIO
+from gpiozero import Motor, PWMOutputDevice
+import cv2
+import time
 
+# Настраиваем Flask и веб-сокеты
 app = Flask(__name__)
+socketio = SocketIO(app, async_mode='eventlet')
 
-# Настройка GPIO
-GPIO.setmode(GPIO.BCM)
-motor_pins = {
-    'forward': 17,
-    'backward': 18,
-    'left': 27,
-    'right': 22,
-    'stop': 23
-}
+# Настраиваем моторы
+motor1 = Motor(17, 27)
+motor2 = Motor(22, 23)
+ena = PWMOutputDevice(12)
+enb = PWMOutputDevice(13)
 
-# Настройка пинов для моторов
-for pin in motor_pins.values():
-    GPIO.setup(pin, GPIO.OUT)
+# Настраиваем камеру
+camera = cv2.VideoCapture(0)
 
-@app.route('/move', methods=['POST'])
-def move():
-    direction = request.form.get('direction')
-    if direction in motor_pins:
-        GPIO.output(motor_pins[direction], GPIO.HIGH)
-        return 'Motor moving ' + direction, 200
-    return 'Invalid direction', 400
+# Главная страница
+@app.route('/')
+def index():
+    return render_template('index.html')
 
-@app.route('/stop', methods=['POST'])
-def stop():
-    for pin in motor_pins.values():
-        GPIO.output(pin, GPIO.LOW)
-    return 'All motors stopped', 200
+# Генератор видео-потока
+def gen():
+    while True:
+        ret, frame = camera.read()
+        if not ret:
+            break
+        _, buffer = cv2.imencode('.jpg', frame)
+        frame = buffer.tobytes()
+        yield (b'--frame\r\n'
+               b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
+
+@app.route('/video_feed')
+def video_feed():
+    return Response(gen(), mimetype='multipart/x-mixed-replace; boundary=frame')
+
+# Обработка команд управления через веб-сокеты
+@socketio.on('command')
+def handle_command(data):
+    command = data['action']
+    if command == 'forward':
+        motor1.forward()
+        motor2.forward()
+    elif command == 'backward':
+        motor1.backward()
+        motor2.backward()
+    elif command == 'left':
+        motor1.forward()
+        motor2.stop()
+    elif command == 'right':
+        motor1.stop()
+        motor2.forward()
+    elif command == 'stop':
+        motor1.stop()
+        motor2.stop()
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000)  # Убедитесь, что хост и порт указаны правильно
+    socketio.run(app, host='0.0.0.0', port=5000)
