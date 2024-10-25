@@ -1,46 +1,63 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RC Car Control with WebRTC</title>
-    <style>
-        body { text-align: center; margin-top: 50px; }
-        video { width: 80%; margin: 20px; }
-        button { font-size: 24px; margin: 10px; padding: 10px 20px; }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mallard RC Control</title>
+  <style>
+    body { background-color: #333; color: white; text-align: center; }
+    video { width: 80%; height: auto; margin-top: 20px; }
+    .controls { margin-top: 20px; }
+  </style>
 </head>
 <body>
-    <h1>Control the RC Car</h1>
-    <video id="remoteVideo" autoplay playsinline></video>
-    <br>
-    <button onclick="sendCommand('forward')">Forward</button><br>
-    <button onclick="sendCommand('left')">Left</button>
-    <button onclick="sendCommand('stop')">Stop</button>
-    <button onclick="sendCommand('right')">Right</button><br>
-    <button onclick="sendCommand('backward')">Backward</button>
+  <h1>Mallard RC Control</h1>
+  <video id="video" autoplay></video>
+  
+  <div class="controls">
+    <button onclick="sendCommand('w')">↑</button><br>
+    <button onclick="sendCommand('a')">←</button>
+    <button onclick="sendCommand('s')">↓</button>
+    <button onclick="sendCommand('d')">→</button>
+  </div>
 
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.4.1/socket.io.js"></script>
-    <script>
-        const socket = io();
-        const pc = new RTCPeerConnection();
+  <script>
+    const ws = new WebSocket('ws://<RaspberryPi-IP>:8000');
 
-        async function connect() {
-            const offer = await fetch('/offer', { method: 'POST' });
-            const data = await offer.json();
-            await pc.setRemoteDescription(data);
+    ws.onopen = () => console.log("WebSocket connected!");
 
-            pc.ontrack = event => {
-                document.getElementById('remoteVideo').srcObject = event.streams[0];
-            };
-        }
+    function sendCommand(command) {
+      ws.send(command);
+    }
 
-        function sendCommand(action) {
-            socket.emit('command', { action: action });
-            console.log(`Sent command: ${action}`);
-        }
+    // Управление клавишами
+    document.addEventListener('keydown', (e) => {
+      const key = e.key.toLowerCase();
+      if (['w', 'a', 's', 'd'].includes(key)) {
+        sendCommand(key);
+      }
+    });
 
-        connect();
-    </script>
+    // WebRTC соединение для видео
+    const pc = new RTCPeerConnection();
+    pc.ontrack = (event) => {
+      const video = document.getElementById('video');
+      video.srcObject = event.streams[0];
+    };
+
+    async function setupWebRTC() {
+      const offer = await pc.createOffer();
+      await pc.setLocalDescription(offer);
+      
+      const response = await fetch('http://<RaspberryPi-IP>:8080/offer', {
+        method: 'POST',
+        body: JSON.stringify({ sdp: pc.localDescription.sdp, type: pc.localDescription.type }),
+      });
+      const answer = await response.json();
+      await pc.setRemoteDescription(answer);
+    }
+
+    setupWebRTC();
+  </script>
 </body>
 </html>
