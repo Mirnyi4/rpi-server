@@ -1,60 +1,88 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mallard RC Control</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mallard RC Control</title>
+  <style>
+    body {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      background-color: #333;
+      color: white;
+      font-family: Arial, sans-serif;
+    }
+    video {
+      width: 80%;
+      max-width: 600px;
+      margin: 20px;
+      border: 2px solid #fff;
+    }
+    .controls {
+      display: flex;
+      justify-content: space-around;
+      width: 80%;
+      max-width: 400px;
+      margin: 20px;
+    }
+    button {
+      padding: 10px 20px;
+      font-size: 18px;
+      background-color: #555;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+    button:hover {
+      background-color: #777;
+    }
+  </style>
 </head>
 <body>
-    <h1>Управление RC машинкой</h1>
-    <img id="video" width="640" height="480" alt="Video feed">
-    <div>
-        <button onclick="sendCommand('forward')">Вперед</button>
-        <button onclick="sendCommand('backward')">Назад</button>
-        <button onclick="sendCommand('left')">Влево</button>
-        <button onclick="sendCommand('right')">Вправо</button>
-        <button onclick="sendCommand('stop')">Стоп</button>
-    </div>
+  <h1>Mallard RC Control</h1>
+  <video id="video" autoplay playsinline></video>
+  <div class="controls">
+    <button onclick="sendCommand('forward')">Вперёд</button>
+    <button onclick="sendCommand('left')">Влево</button>
+    <button onclick="sendCommand('right')">Вправо</button>
+    <button onclick="sendCommand('backward')">Назад</button>
+  </div>
 
-    <script>
-        const socket = io();
+  <script>
+    // WebRTC: Устанавливаем соединение с Raspberry Pi
+    const peerConnection = new RTCPeerConnection({
+      iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
+    });
 
-        // Обновление изображения с видеопотока
-        socket.on('video_frame', function(data) {
-            document.getElementById('video').src = 'data:image/jpeg;base64,' + data.data;
-        });
+    peerConnection.ontrack = (event) => {
+      const video = document.getElementById('video');
+      video.srcObject = event.streams[0];
+    };
 
-        function sendCommand(action) {
-            socket.emit('command', { action: action });
-        }
+    async function startConnection() {
+      const offer = await peerConnection.createOffer();
+      await peerConnection.setLocalDescription(offer);
 
-        // Обработка нажатий клавиш
-        document.addEventListener('keydown', function(event) {
-            switch (event.key) {
-                case 'w':
-                case 'W':
-                    sendCommand('forward');
-                    break;
-                case 's':
-                case 'S':
-                    sendCommand('backward');
-                    break;
-                case 'a':
-                case 'A':
-                    sendCommand('left');
-                    break;
-                case 'd':
-                case 'D':
-                    sendCommand('right');
-                    break;
-            }
-        });
+      // Отправьте offer на Raspberry Pi через WebSocket
+      const response = await fetch('/offer', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ offer: peerConnection.localDescription })
+      });
+      const { answer } = await response.json();
+      await peerConnection.setRemoteDescription(answer);
+    }
 
-        // Остановка машины при отпускании клавиши
-        document.addEventListener('keyup', function(event) {
-            sendCommand('stop');
-        });
-    </script>
+    startConnection();
+
+    // Отправляем команды управления на сервер через WebSocket
+    const socket = new WebSocket('ws://<raspberry-pi-ip>:8080');
+
+    function sendCommand(command) {
+      socket.send(JSON.stringify({ action: command }));
+    }
+  </script>
 </body>
 </html>
