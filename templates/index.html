@@ -1,88 +1,46 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Mallard RC Control</title>
-  <style>
-    body {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      background-color: #333;
-      color: white;
-      font-family: Arial, sans-serif;
-    }
-    video {
-      width: 80%;
-      max-width: 600px;
-      margin: 20px;
-      border: 2px solid #fff;
-    }
-    .controls {
-      display: flex;
-      justify-content: space-around;
-      width: 80%;
-      max-width: 400px;
-      margin: 20px;
-    }
-    button {
-      padding: 10px 20px;
-      font-size: 18px;
-      background-color: #555;
-      color: white;
-      border: none;
-      border-radius: 5px;
-      cursor: pointer;
-    }
-    button:hover {
-      background-color: #777;
-    }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RC Car Control with WebRTC</title>
+    <style>
+        body { text-align: center; margin-top: 50px; }
+        video { width: 80%; margin: 20px; }
+        button { font-size: 24px; margin: 10px; padding: 10px 20px; }
+    </style>
 </head>
 <body>
-  <h1>Mallard RC Control</h1>
-  <video id="video" autoplay playsinline></video>
-  <div class="controls">
-    <button onclick="sendCommand('forward')">Вперёд</button>
-    <button onclick="sendCommand('left')">Влево</button>
-    <button onclick="sendCommand('right')">Вправо</button>
-    <button onclick="sendCommand('backward')">Назад</button>
-  </div>
+    <h1>Control the RC Car</h1>
+    <video id="remoteVideo" autoplay playsinline></video>
+    <br>
+    <button onclick="sendCommand('forward')">Forward</button><br>
+    <button onclick="sendCommand('left')">Left</button>
+    <button onclick="sendCommand('stop')">Stop</button>
+    <button onclick="sendCommand('right')">Right</button><br>
+    <button onclick="sendCommand('backward')">Backward</button>
 
-  <script>
-    // WebRTC: Устанавливаем соединение с Raspberry Pi
-    const peerConnection = new RTCPeerConnection({
-      iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
-    });
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.4.1/socket.io.js"></script>
+    <script>
+        const socket = io();
+        const pc = new RTCPeerConnection();
 
-    peerConnection.ontrack = (event) => {
-      const video = document.getElementById('video');
-      video.srcObject = event.streams[0];
-    };
+        async function connect() {
+            const offer = await fetch('/offer', { method: 'POST' });
+            const data = await offer.json();
+            await pc.setRemoteDescription(data);
 
-    async function startConnection() {
-      const offer = await peerConnection.createOffer();
-      await peerConnection.setLocalDescription(offer);
+            pc.ontrack = event => {
+                document.getElementById('remoteVideo').srcObject = event.streams[0];
+            };
+        }
 
-      // Отправьте offer на Raspberry Pi через WebSocket
-      const response = await fetch('/offer', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ offer: peerConnection.localDescription })
-      });
-      const { answer } = await response.json();
-      await peerConnection.setRemoteDescription(answer);
-    }
+        function sendCommand(action) {
+            socket.emit('command', { action: action });
+            console.log(`Sent command: ${action}`);
+        }
 
-    startConnection();
-
-    // Отправляем команды управления на сервер через WebSocket
-    const socket = new WebSocket('ws://<raspberry-pi-ip>:8080');
-
-    function sendCommand(command) {
-      socket.send(JSON.stringify({ action: command }));
-    }
-  </script>
+        connect();
+    </script>
 </body>
 </html>
