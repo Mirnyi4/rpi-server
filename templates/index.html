@@ -23,11 +23,16 @@
     const pc = new RTCPeerConnection();
 
     async function start() {
+      // Создание предложения
+      const offer = await pc.createOffer();
+      await pc.setLocalDescription(offer);
+
       const response = await fetch('/webrtc', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sdp: pc.localDescription.sdp, type: pc.localDescription.type })
+        body: JSON.stringify({ sdp: offer.sdp, type: offer.type })
       });
+
       const answer = await response.json();
       await pc.setRemoteDescription(answer);
 
