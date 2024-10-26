@@ -53,7 +53,7 @@ async def control_car(direction, state):
             # Здесь добавьте код для управления поворотом влево
         elif direction == 'right':
             print("Turning right")
-            # Здесь добавьте код для управления поворотом вправо
+            # Здесь добавьте код для управления поворотом вправоj
 
 async def control_handler(websocket, path):
     async for message in websocket:
