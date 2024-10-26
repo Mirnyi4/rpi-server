@@ -1,70 +1,45 @@
 import asyncio
 from aiohttp import web
-import cv2
-import aiortc
-from aiortc import VideoStreamTrack
-import logging
-import os
+from aiortc import RTCPeerConnection, VideoStreamTrack
+import av
 
-logging.basicConfig(level=logging.INFO)
-
-class CameraStreamTrack(VideoStreamTrack):
-    def __init__(self):
-        super().__init__()  # Initialize the base class
-        # Запуск libcamera
-        self.video = cv2.VideoCapture("libcamera-vid --inline --format=h264 --width 640 --height 480 --timeout 10000 -o -", cv2.CAP_GSTREAMER)
-
-    async def recv(self):
-        frame = self.video.read()[1]
-        if frame is None:
-            raise Exception("Failed to capture frame")
-        
-        # Конвертация кадра в формат JPEG
-        _, buffer = cv2.imencode('.jpg', frame)
-        return aiortc.VideoFrame.from_ndarray(buffer, format="jpeg")
+# Инициализация
+pcs = set()
 
 async def webrtc_handler(request):
-    pc = aiortc.RTCPeerConnection()
+    pc = RTCPeerConnection()
+    pcs.add(pc)
 
-    @pc.on("track")
-    def on_track(track):
-        if track.kind == "video":
-            track.attach(CameraStreamTrack())
+    @pc.on("icecandidate")
+    async def on_icecandidate(candidate):
+        # Отправляем кандидата обратно клиенту
+        await request.app["websocket"].send_json({"candidate": candidate})
 
-    # Обработка предложения
-    offer = await request.json()
-    await pc.setRemoteDescription(aiortc.RTCSessionDescription(offer['sdp'], offer['type']))
-    answer = pc.createAnswer()
-    await pc.setLocalDescription(answer)
+    # Получение SDP от клиента
+    data = await request.json()
+    if data.get("type") == "offer":
+        await pc.setRemoteDescription(RTCPeerConnection.SDP(data["sdp"]))
+        answer = await pc.createAnswer()
+        await pc.setLocalDescription(answer)
+        return web.json_response({"sdp": pc.localDescription.sdp, "type": pc.localDescription.type})
     
-    return web.json_response({
-        'sdp': pc.localDescription.sdp,
-        'type': pc.localDescription.type
-    })
+    return web.Response(status=400)
 
 async def control_handler(request):
     data = await request.json()
     direction = data.get('direction')
     state = data.get('state')
-    # Здесь можно добавить управление машинкой
-    return web.Response(text="OK")
+    # Здесь вы можете обработать команды для управления машинкой
+    print(f'Command received: {direction}, State: {state}')
+    return web.Response(status=200)
 
-async def index_handler(request):
-    return web.FileResponse('./templates/index.html')
-
-async def main():
+async def init_app():
     app = web.Application()
-    app.router.add_get('/', index_handler)  # Добавляем обработчик для главной страницы
-    app.router.add_post('/webrtc', webrtc_handler)
-    app.router.add_post('/control', control_handler)
-
-    runner = web.AppRunner(app)
-    await runner.setup()
-    site = web.TCPSite(runner, '0.0.0.0', 5000)
-    await site.start()
+    app.router.add_get("/", lambda request: web.FileResponse("templates/index.html"))
+    app.router.add_post("/webrtc", webrtc_handler)
+    app.router.add_post("/control", control_handler)
     
-    logging.info("Server started at http://0.0.0.0:5000")
-    await asyncio.Event().wait()  # Keep running
+    return app
 
-if __name__ == '__main__':
-    asyncio.run(main())
+if __name__ == "__main__":
+    web.run_app(init_app(), port=5000)
