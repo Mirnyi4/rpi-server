@@ -1,52 +1,70 @@
 import asyncio
+from aiohttp import web
+from aiortc import RTCPeerConnection, VideoStreamTrack
+import cv2
+import numpy as np
+from aiortc.contrib.media import MediaPlayer
 import json
-import websockets
-from aiortc import RTCPeerConnection, MediaStreamTrack
-from aiortc.contrib.media import MediaPlayer, MediaRecorder
-import subprocess
 
-class CameraStreamTrack(MediaStreamTrack):
-    kind = "video"
-
+class CameraStreamTrack(VideoStreamTrack):
+    """
+    A video stream track that gets frames from the camera.
+    """
     def __init__(self):
         super().__init__()
-        # Запускаем libcamera-vid и выводим на stdout
-        self.process = subprocess.Popen(
-            ["libcamera-vid", "--inline", "--framerate", "30", "-t", "0", "--output", "/dev/stdout"],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE
-        )
+        self.player = MediaPlayer('/dev/video0')
 
     async def recv(self):
-        # Получаем один кадр из stdout
-        frame = await asyncio.get_event_loop().run_in_executor(None, self.process.stdout.read, 4096)
+        frame = await self.player.recv()
         return frame
 
-async def webrtc_handler(websocket):
+async def webrtc_handler(request):
     pc = RTCPeerConnection()
-    camera = CameraStreamTrack()
+
+    @pc.on("icecandidate")
+    async def on_icecandidate(candidate):
+        await request.app['websocket'].send(json.dumps({
+            "event": "icecandidate",
+            "candidate": candidate
+        }))
 
     @pc.on("track")
-    def on_track(track):
+    async def on_track(track):
         if track.kind == "video":
-            pc.addTrack(camera)
+            pc.addTrack(CameraStreamTrack())
 
-    try:
-        async for message in websocket:
-            message = json.loads(message)
+    offer = await request.json()
+    await pc.setRemoteDescription(offer)
+    answer = await pc.createAnswer()
+    await pc.setLocalDescription(answer)
 
-            if message["type"] == "offer":
-                await pc.setRemoteDescription(message["sdp"])
-                answer = await pc.createAnswer()
-                await pc.setLocalDescription(answer)
-                await websocket.send(json.dumps({"type": "answer", "sdp": pc.localDescription.sdp}))
+    return web.json_response({
+        "sdp": pc.localDescription.sdp,
+        "type": pc.localDescription.type
+    })
 
-    finally:
-        await pc.close()
+async def control_handler(request):
+    data = await request.json()
+    direction = data.get("direction")
+    state = data.get("state")
+    
+    # Здесь добавьте код для управления вашей машинкой на основе полученных команд
+
+    return web.Response(text="Command received")
 
 async def main():
-    async with websockets.serve(webrtc_handler, "0.0.0.0", 8765):
-        await asyncio.Future()  # Keep running
+    app = web.Application()
+    app.router.add_post('/offer', webrtc_handler)
+    app.router.add_post('/control', control_handler)
 
-if __name__ == "__main__":
+    runner = web.AppRunner(app)
+    await runner.setup()
+    site = web.TCPSite(runner, '0.0.0.0', 5000)
+    await site.start()
+
+    print("Server started at http://0.0.0.0:5000")
+    while True:
+        await asyncio.sleep(3600)  # Keep the server running
+
+if __name__ == '__main__':
     asyncio.run(main())
