@@ -1,55 +1,49 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Remote Car Control</title>
-  <style>
-    body { text-align: center; font-family: Arial, sans-serif; }
-    video { width: 80%; margin-top: 10px; }
-    button { margin: 5px; padding: 10px 20px; font-size: 18px; }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebRTC Streaming</title>
 </head>
 <body>
-  <h1>Remote Car Control</h1>
-  <video id="video" autoplay playsinline></video>
-  <div>
-    <button onclick="sendCommand('forward', true)">Forward</button><br>
-    <button onclick="sendCommand('left', true)">Left</button>
-    <button onclick="sendCommand('right', true)">Right</button><br>
-    <button onclick="sendCommand('backward', true)">Backward</button>
-  </div>
-  <script>
-    const pc = new RTCPeerConnection();
+    <h1>WebRTC Streaming</h1>
+    <video id="video" autoplay playsinline></video>
+    <button id="start">Start Streaming</button>
 
-    async function start() {
-      // Создание предложения
-      const offer = await pc.createOffer();
-      await pc.setLocalDescription(offer);
+    <script>
+        const video = document.getElementById('video');
+        const startButton = document.getElementById('start');
+        let pc;
 
-      const response = await fetch('/webrtc', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sdp: offer.sdp, type: offer.type })
-      });
+        startButton.onclick = async () => {
+            pc = new RTCPeerConnection();
 
-      const answer = await response.json();
-      await pc.setRemoteDescription(answer);
+            pc.onicecandidate = async event => {
+                if (event.candidate) {
+                    await fetch('/webrtc', {
+                        method: 'POST',
+                        body: JSON.stringify({ candidate: event.candidate }),
+                        headers: { 'Content-Type': 'application/json' }
+                    });
+                }
+            };
 
-      pc.ontrack = event => {
-        document.getElementById('video').srcObject = event.streams[0];
-      };
-    }
+            pc.ontrack = event => {
+                video.srcObject = event.streams[0];
+            };
 
-    function sendCommand(direction, state) {
-      fetch('/control', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ direction, state })
-      });
-    }
+            const offer = await pc.createOffer();
+            await pc.setLocalDescription(offer);
 
-    start();
-  </script>
+            const response = await fetch('/webrtc', {
+                method: 'POST',
+                body: JSON.stringify({ type: 'offer', sdp: pc.localDescription }),
+                headers: { 'Content-Type': 'application/json' }
+            });
+
+            const answer = await response.json();
+            await pc.setRemoteDescription(new RTCSessionDescription(answer));
+        };
+    </script>
 </body>
 </html>
