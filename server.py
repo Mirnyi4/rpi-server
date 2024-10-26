@@ -1,56 +1,60 @@
-import asyncio
-from aiortc import RTCPeerConnection, RTCSessionDescription, VideoStreamTrack
-from aiortc.contrib.media import MediaBlackhole, MediaPlayer
-import RPi.GPIO as GPIO
-from aiohttp import web
+from flask import Flask, render_template, Response, request
+import cv2
+import json
+from threading import Thread
+import socket
 
-# Настройки пинов для двигателей
-motor_pins = {"left": 12, "right": 14, "forward": 16, "backward": 17}
-GPIO.setmode(GPIO.BCM)
-for pin in motor_pins.values():
-    GPIO.setup(pin, GPIO.OUT)
+app = Flask(__name__)
 
-# Функции управления двигателями
-def control_motor(direction, state):
-    GPIO.output(motor_pins[direction], GPIO.HIGH if state else GPIO.LOW)
+# Настройки камеры
+camera = cv2.VideoCapture(0)
 
-# Видео-поток с камеры
-class CameraVideoStream(VideoStreamTrack):
-    def __init__(self):
-        super().__init__()
-        self.player = MediaPlayer("/dev/video0", format="v4l2")
+# Параметры управления машинкой
+direction = 'stop'
+state = False
 
-    async def recv(self):
-        frame = await self.player.video.recv()
-        return frame
+def send_command(direction, state):
+    """Отправляет команду управления машинкой."""
+    # Здесь должна быть логика управления мотором
+    print(f"Direction: {direction}, State: {state}")
 
-# Инициализация WebRTC
-pc = RTCPeerConnection()
+@app.route('/')
+def index():
+    """Отправляет HTML-страницу."""
+    return render_template('index.html')
 
-async def offer(request):
-    params = await request.json()
-    offer = RTCSessionDescription(sdp=params["sdp"], type=params["type"])
-    await pc.setRemoteDescription(offer)
+def generate_frames():
+    """Генерирует кадры с камеры для передачи в видеопотоке."""
+    while True:
+        success, frame = camera.read()  # Читаем кадр
+        if not success:
+            break
+        else:
+            # Кодируем кадр в JPEG
+            ret, buffer = cv2.imencode('.jpg', frame)
+            frame = buffer.tobytes()
+            # Отправляем кадр
+            yield (b'--frame\r\n'
+                   b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
 
-    pc.addTrack(CameraVideoStream())
-    answer = await pc.createAnswer()
-    await pc.setLocalDescription(answer)
+@app.route('/video_feed')
+def video_feed():
+    """Обрабатывает видеопоток."""
+    return Response(generate_frames(), mimetype='multipart/x-mixed-replace; boundary=frame')
 
-    return web.json_response({
-        "sdp": pc.localDescription.sdp,
-        "type": pc.localDescription.type
-    })
+@app.route('/control', methods=['POST'])
+def control():
+    """Обрабатывает команды управления."""
+    global direction, state
+    data = request.get_json()
+    direction = data['direction']
+    state = data['state']
+    send_command(direction, state)
+    return json.dumps({'status': 'success'}), 200
 
-async def handle_control(request):
-    data = await request.json()
-    direction = data.get("direction")
-    state = data.get("state", False)
-    control_motor(direction, state)
-    return web.Response(text="OK")
+if __name__ == '__main__':
+    # Запуск Flask-сервера
+    app.run(host='0.0.0.0', port=5000, debug=True)
 
-# Настройка сервера
-app = web.Application()
-app.add_routes([web.post("/offer", offer), web.post("/control", handle_control)])
-
-if __name__ == "__main__":
-    web.run_app(app, host="0.0.0.0", port=8080)
+# Не забудьте остановить поток камеры при завершении
+camera.release()
