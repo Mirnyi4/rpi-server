@@ -1,6 +1,6 @@
 import asyncio
 from aiohttp import web
-from aiortc import RTCPeerConnection, VideoStreamTrack
+from aiortc import RTCPeerConnection, RTCSessionDescription, VideoStreamTrack
 import av
 
 # Инициализация
@@ -18,7 +18,9 @@ async def webrtc_handler(request):
     # Получение SDP от клиента
     data = await request.json()
     if data.get("type") == "offer":
-        await pc.setRemoteDescription(RTCPeerConnection.SDP(data["sdp"]))
+        # Создание RTCSessionDescription из входящих данных
+        offer = RTCSessionDescription(sdp=data["sdp"], type="offer")
+        await pc.setRemoteDescription(offer)
         answer = await pc.createAnswer()
         await pc.setLocalDescription(answer)
         return web.json_response({"sdp": pc.localDescription.sdp, "type": pc.localDescription.type})
