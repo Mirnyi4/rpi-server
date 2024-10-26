@@ -3,47 +3,47 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WebRTC Streaming</title>
+    <title>Car Control</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.min.js"></script>
 </head>
 <body>
-    <h1>WebRTC Streaming</h1>
+    <h1>Управление машинкой</h1>
+    <button onclick="move('forward')">Вперед</button>
+    <button onclick="move('backward')">Назад</button>
+    <button onclick="move('left')">Влево</button>
+    <button onclick="move('right')">Вправо</button>
+    <button onclick="move('stop')">Стоп</button>
+
+    <h2>Видеопоток</h2>
     <video id="video" autoplay playsinline></video>
-    <button id="start">Start Streaming</button>
 
     <script>
-        const video = document.getElementById('video');
-        const startButton = document.getElementById('start');
-        let pc;
+        const socket = io();
+        
+        function move(direction) {
+            socket.emit('move', { direction: direction });
+        }
 
-        startButton.onclick = async () => {
-            pc = new RTCPeerConnection();
+        // Установление WebRTC-соединения
+        async function startWebRTC() {
+            const pc = new RTCPeerConnection();
+            const video = document.getElementById('video');
 
-            pc.onicecandidate = async event => {
-                if (event.candidate) {
-                    await fetch('/webrtc', {
-                        method: 'POST',
-                        body: JSON.stringify({ candidate: event.candidate }),
-                        headers: { 'Content-Type': 'application/json' }
-                    });
-                }
-            };
-
-            pc.ontrack = event => {
+            pc.ontrack = (event) => {
                 video.srcObject = event.streams[0];
             };
 
             const offer = await pc.createOffer();
             await pc.setLocalDescription(offer);
 
-            const response = await fetch('/webrtc', {
-                method: 'POST',
-                body: JSON.stringify({ type: 'offer', sdp: pc.localDescription }),
-                headers: { 'Content-Type': 'application/json' }
-            });
+            socket.emit('offer', { offer: offer });
 
-            const answer = await response.json();
-            await pc.setRemoteDescription(new RTCSessionDescription(answer));
-        };
+            socket.on('answer', async (data) => {
+                await pc.setRemoteDescription(data);
+            });
+        }
+
+        startWebRTC();
     </script>
 </body>
 </html>
