@@ -21,21 +21,15 @@
   </div>
   <script>
     const pc = new RTCPeerConnection();
-    const ws = new WebSocket('ws://192.168.0.174:8765'); // Замените на IP вашего сервера и порт
-
-    ws.onopen = () => {
-      console.log('WebSocket connection established');
-    };
-
-    ws.onmessage = (event) => {
-      console.log('Message from server ', event.data);
-    };
 
     async function start() {
+      const offer = await pc.createOffer();
+      await pc.setLocalDescription(offer);
+
       const response = await fetch('/offer', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sdp: pc.localDescription.sdp, type: pc.localDescription.type })
+        body: JSON.stringify({ sdp: pc.localDescription.sdp, type: "offer" })
       });
       const answer = await response.json();
       await pc.setRemoteDescription(answer);
@@ -51,8 +45,6 @@
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ direction, state })
       });
-      // Также отправьте команду по WebSocket
-      ws.send(JSON.stringify({ direction, state }));
     }
 
     start();
