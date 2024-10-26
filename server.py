@@ -1,60 +1,72 @@
-from flask import Flask, render_template, Response, request
-import cv2
+import asyncio
 import json
-from threading import Thread
-import socket
+import websockets
+from aiortc import RTCConfiguration, RTCPeerConnection, VideoStreamTrack
+import subprocess
+import numpy as np
+import cv2
 
-app = Flask(__name__)
+class CameraStreamTrack(VideoStreamTrack):
+    def __init__(self):
+        super().__init__()
+        # Запускаем libcamera и получаем вывод через пайп
+        self.process = subprocess.Popen(
+            ['libcamera-vid', '-t', '0', '--inline', '--output', '-'],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE
+        )
 
-# Настройки камеры
-camera = cv2.VideoCapture(0)
+    async def recv(self):
+        # Читаем из stdout и обрабатываем кадры
+        raw_frame = self.process.stdout.read(640 * 480 * 3)  # Предполагаем 640x480
+        if len(raw_frame) == 640 * 480 * 3:  # Проверка, что размер кадра корректный
+            frame = np.frombuffer(raw_frame, np.uint8).reshape((480, 640, 3))
+            return frame
+        return None
 
-# Параметры управления машинкой
-direction = 'stop'
-state = False
+async def webrtc_handler(websocket, path):
+    pc = RTCPeerConnection(RTCConfiguration())
+    track = CameraStreamTrack()
+    pc.addTrack(track)
 
-def send_command(direction, state):
-    """Отправляет команду управления машинкой."""
-    # Здесь должна быть логика управления мотором
-    print(f"Direction: {direction}, State: {state}")
+    # Обработка обмена SDP
+    async for message in websocket:
+        offer = json.loads(message)
+        await pc.setRemoteDescription(offer)
 
-@app.route('/')
-def index():
-    """Отправляет HTML-страницу."""
-    return render_template('index.html')
+        answer = await pc.createAnswer()
+        await pc.setLocalDescription(answer)
 
-def generate_frames():
-    """Генерирует кадры с камеры для передачи в видеопотоке."""
-    while True:
-        success, frame = camera.read()  # Читаем кадр
-        if not success:
-            break
-        else:
-            # Кодируем кадр в JPEG
-            ret, buffer = cv2.imencode('.jpg', frame)
-            frame = buffer.tobytes()
-            # Отправляем кадр
-            yield (b'--frame\r\n'
-                   b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
+        await websocket.send(pc.localDescription)
 
-@app.route('/video_feed')
-def video_feed():
-    """Обрабатывает видеопоток."""
-    return Response(generate_frames(), mimetype='multipart/x-mixed-replace; boundary=frame')
+async def control_car(direction, state):
+    # Логика управления машинкой
+    if state:  # Если кнопка нажата
+        if direction == 'forward':
+            print("Moving forward")
+            # Здесь добавьте код для управления движением вперед
+        elif direction == 'backward':
+            print("Moving backward")
+            # Здесь добавьте код для управления движением назад
+        elif direction == 'left':
+            print("Turning left")
+            # Здесь добавьте код для управления поворотом влево
+        elif direction == 'right':
+            print("Turning right")
+            # Здесь добавьте код для управления поворотом вправо
 
-@app.route('/control', methods=['POST'])
-def control():
-    """Обрабатывает команды управления."""
-    global direction, state
-    data = request.get_json()
-    direction = data['direction']
-    state = data['state']
-    send_command(direction, state)
-    return json.dumps({'status': 'success'}), 200
+async def control_handler(websocket, path):
+    async for message in websocket:
+        command = json.loads(message)
+        await control_car(command['direction'], command['state'])
 
-if __name__ == '__main__':
-    # Запуск Flask-сервера
-    app.run(host='0.0.0.0', port=5000, debug=True)
+async def main():
+    # Запускаем WebSocket сервер для WebRTC
+    webrtc_server = websockets.serve(webrtc_handler, "0.0.0.0", 8765)
+    control_server = websockets.serve(control_handler, "0.0.0.0", 8766)
 
-# Не забудьте остановить поток камеры при завершении
-camera.release()
+    async with webrtc_server, control_server:
+        await asyncio.Future()  # Keep running
+
+if __name__ == "__main__":
+    asyncio.run(main())
