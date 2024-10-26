@@ -3,61 +3,59 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Mallard RC Control</title>
+  <title>Remote Car Control</title>
   <style>
-    body { background-color: #333; color: white; text-align: center; }
-    video { width: 80%; height: auto; margin-top: 20px; }
-    .controls { margin-top: 20px; }
+    body { text-align: center; font-family: Arial, sans-serif; }
+    video { width: 80%; margin-top: 10px; }
+    button { margin: 5px; padding: 10px 20px; font-size: 18px; }
   </style>
 </head>
 <body>
-  <h1>Mallard RC Control</h1>
-  <video id="video" autoplay></video>
-  
-  <div class="controls">
-    <button onclick="sendCommand('w')">↑</button><br>
-    <button onclick="sendCommand('a')">←</button>
-    <button onclick="sendCommand('s')">↓</button>
-    <button onclick="sendCommand('d')">→</button>
+  <h1>Remote Car Control</h1>
+  <video id="video" autoplay playsinline></video>
+  <div>
+    <button onclick="sendCommand('forward', true)">Forward</button><br>
+    <button onclick="sendCommand('left', true)">Left</button>
+    <button onclick="sendCommand('right', true)">Right</button><br>
+    <button onclick="sendCommand('backward', true)">Backward</button>
   </div>
-
   <script>
-    const ws = new WebSocket('ws://<RaspberryPi-IP>:8000');
-
-    ws.onopen = () => console.log("WebSocket connected!");
-
-    function sendCommand(command) {
-      ws.send(command);
-    }
-
-    // Управление клавишами
-    document.addEventListener('keydown', (e) => {
-      const key = e.key.toLowerCase();
-      if (['w', 'a', 's', 'd'].includes(key)) {
-        sendCommand(key);
-      }
-    });
-
-    // WebRTC соединение для видео
     const pc = new RTCPeerConnection();
-    pc.ontrack = (event) => {
-      const video = document.getElementById('video');
-      video.srcObject = event.streams[0];
+    const ws = new WebSocket('ws://192.168.0.174:8765'); // Замените на IP вашего сервера и порт
+
+    ws.onopen = () => {
+      console.log('WebSocket connection established');
     };
 
-    async function setupWebRTC() {
-      const offer = await pc.createOffer();
-      await pc.setLocalDescription(offer);
-      
-      const response = await fetch('http://<RaspberryPi-IP>:8080/offer', {
+    ws.onmessage = (event) => {
+      console.log('Message from server ', event.data);
+    };
+
+    async function start() {
+      const response = await fetch('/offer', {
         method: 'POST',
-        body: JSON.stringify({ sdp: pc.localDescription.sdp, type: pc.localDescription.type }),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sdp: pc.localDescription.sdp, type: pc.localDescription.type })
       });
       const answer = await response.json();
       await pc.setRemoteDescription(answer);
+
+      pc.ontrack = event => {
+        document.getElementById('video').srcObject = event.streams[0];
+      };
     }
 
-    setupWebRTC();
+    function sendCommand(direction, state) {
+      fetch('/control', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ direction, state })
+      });
+      // Также отправьте команду по WebSocket
+      ws.send(JSON.stringify({ direction, state }));
+    }
+
+    start();
   </script>
 </body>
 </html>
