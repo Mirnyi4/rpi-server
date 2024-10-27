@@ -1,36 +1,29 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ru">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Raspberry Pi WebRTC Stream</title>
+    <title>Трансляция WebRTC</title>
 </head>
 <body>
-    <h1>Видео с Raspberry Pi</h1>
+    <h1>Трансляция видео с Raspberry Pi через WebRTC</h1>
     <video id="video" autoplay playsinline></video>
+
     <script>
         const video = document.getElementById('video');
+        const ws = new WebSocket('ws://192.168.0.174:8080/ws'); // Используем IP-адрес вашего сервера
 
-        async function startWebRTC() {
-            const pc = new RTCPeerConnection();
+        ws.onopen = () => {
+            console.log('WebSocket соединение установлено');
+        };
 
-            pc.ontrack = (event) => {
-                video.srcObject = event.streams[0];
-            };
+        ws.onmessage = (message) => {
+            // Логика обработки сообщений
+        };
 
-            const offer = await pc.createOffer();
-            await pc.setLocalDescription(offer);
-
-            const response = await fetch('/offer', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(pc.localDescription)
-            });
-            const answer = await response.json();
-            await pc.setRemoteDescription(answer);
-        }
-
-        startWebRTC();
+        ws.onclose = () => {
+            console.log('WebSocket соединение закрыто');
+        };
     </script>
 </body>
 </html>
