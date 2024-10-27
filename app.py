@@ -1,68 +1,63 @@
+import asyncio
 import cv2
 import numpy as np
-from flask import Flask, render_template
-from flask_socketio import SocketIO
-from gpiozero import Motor, PWMOutputDevice
-import base64
+from aiohttp import web
+from aiortc import RTCPeerConnection, VideoStreamTrack
 
-# Настраиваем Flask и веб-сокеты
-app = Flask(__name__)
-socketio = SocketIO(app, async_mode='eventlet')
+# Создание класса для видео потока
+class CameraStreamTrack(VideoStreamTrack):
+    kind = "video"
 
-# Настраиваем моторы
-motor1 = Motor(17, 27)
-motor2 = Motor(22, 23)
-ena = PWMOutputDevice(12)
-enb = PWMOutputDevice(13)
+    def __init__(self, camera):
+        super().__init__()
+        self.camera = camera
 
-# Главная страница
-@app.route('/')
-def index():
-    return render_template('index.html')
+    async def recv(self):
+        # Захват кадра
+        frame = self.camera.read()
+        if not frame[0]:
+            raise Exception("Камера не доступна")
 
-# Отправка видео через веб-сокеты
-def send_video():
-    cap = cv2.VideoCapture(0)  # Используйте '0' для первой камеры
+        # Преобразование кадра в формат, подходящий для WebRTC
+        frame_bgr = frame[1]
+        frame_rgb = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB)
+        frame_rgb = cv2.resize(frame_rgb, (640, 480))
+        return frame_rgb
 
-    while cap.isOpened():
-        ret, frame = cap.read()
-        if not ret:
-            break
+# Создание экземпляра RTCPeerConnection
+async def create_peer_connection():
+    pc = RTCPeerConnection()
+    camera = cv2.VideoCapture(0)  # Замените 0 на соответствующий номер камеры
 
-        # Кодируем кадр в JPEG
-        _, buffer = cv2.imencode('.jpg', frame)
-        frame_data = base64.b64encode(buffer).decode('utf-8')
-        
-        # Отправляем кадр через веб-сокет
-        socketio.emit('video_frame', {'data': frame_data})
-        socketio.sleep(0.03)  # Уменьшаем частоту передачи (примерно 30 fps)
+    # Добавление видео потока
+    pc.addTrack(CameraStreamTrack(camera))
 
-    cap.release()
+    return pc
 
-# Запуск потока видео в фоновом режиме
-@socketio.on('connect')
-def handle_connect():
-    socketio.start_background_task(send_video)
+# Обработка запросов от клиента
+async def websocket_handler(request):
+    pc = await create_peer_connection()
 
-# Обработка команд управления через веб-сокеты
-@socketio.on('command')
-def handle_command(data):
-    command = data['action']
-    if command == 'forward':
-        motor1.forward()
-        motor2.forward()
-    elif command == 'backward':
-        motor1.backward()
-        motor2.backward()
-    elif command == 'left':
-        motor1.forward()
-        motor2.stop()
-    elif command == 'right':
-        motor1.stop()
-        motor2.forward()
-    elif command == 'stop':
-        motor1.stop()
-        motor2.stop()
+    # Создание WebSocket соединения
+    websocket = web.WebSocketResponse()
+    await websocket.prepare(request)
 
+    async for msg in websocket:
+        if msg.type == web.WSMsgType.TEXT:
+            # Логика обработки сообщений WebSocket
+            pass
+
+    return websocket
+
+# Отправка HTML страницы
+async def index(request):
+    return web.FileResponse('templates/index.html')
+
+# Создание приложения
+app = web.Application()
+app.router.add_get('/', index)
+app.router.add_get('/ws', websocket_handler)
+
+# Запуск веб-сервера
 if __name__ == '__main__':
-    socketio.run(app, host='0.0.0.0', port=5000)
+    web.run_app(app, host='0.0.0.0', port=8080)
