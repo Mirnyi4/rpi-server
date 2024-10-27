@@ -1,22 +1,31 @@
 import asyncio
 from aiohttp import web
 from aiortc import RTCPeerConnection, RTCSessionDescription, MediaStreamTrack
-from aiortc.contrib.media import MediaBlackhole, MediaPlayer
+from aiortc.contrib.media import MediaRelay
+import subprocess
 
-# Трек для передачи видео с помощью GStreamer
+relay = MediaRelay()
+
 class CameraStream(MediaStreamTrack):
     kind = "video"
 
     def __init__(self):
         super().__init__()
-        # Используем GStreamer для захвата видео
-        self.player = MediaPlayer(
-            "libcamerasrc ! video/x-raw, width=640, height=480, framerate=30/1 ! videoconvert ! appsink",
-            format="raw"
+        # Запускаем GStreamer как отдельный процесс
+        self.process = subprocess.Popen(
+            [
+                "gst-launch-1.0", "libcamerasrc", "!", 
+                "video/x-raw,width=640,height=480,framerate=30/1", "!",
+                "videoconvert", "!", "queue", "!", 
+                "vp8enc", "!", "rtpvp8pay", "!", 
+                "udpsink", "host=127.0.0.1", "port=5004"
+            ],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE
         )
 
     async def recv(self):
-        frame = await self.player.video.recv()
+        frame = await relay.subscribe(self).recv()
         return frame
 
 pcs = set()
@@ -37,14 +46,12 @@ async def offer(request):
             await pc.close()
             pcs.discard(pc)
 
-    # Добавляем поток камеры
     video_track = CameraStream()
     pc.addTrack(video_track)
 
     await pc.setRemoteDescription(offer)
     answer = await pc.createAnswer()
     await pc.setLocalDescription(answer)
-    print("Local Description set:", pc.localDescription)
 
     return web.json_response(
         {"sdp": pc.localDescription.sdp, "type": pc.localDescription.type}
