@@ -1,36 +1,62 @@
-from flask import Flask, render_template
-from flask_socketio import SocketIO
-from motor_control import move, stop
-from aiortc import RTCPeerConnection, MediaStreamTrack
-from camera_stream import CameraStream
+import asyncio
+from aiohttp import web
+from aiortc import RTCPeerConnection, RTCSessionDescription, VideoStreamTrack
+import cv2
 
-app = Flask(__name__)
-socketio = SocketIO(app)
-camera = CameraStream()
+class CameraStream(VideoStreamTrack):
+    """Класс для передачи кадров с камеры через WebRTC."""
+    def __init__(self):
+        super().__init__()
+        self.cap = cv2.VideoCapture(0)  # Используем камеру /dev/video0
 
-# Маршрут для главной страницы
-@app.route('/')
-def index():
-    return render_template('index.html')
+    async def recv(self):
+        pts, time_base = await self.next_timestamp()
+        ret, frame = self.cap.read()
+        if not ret:
+            return
 
-# Управление движением через WebSocket
-@socketio.on('move')
-def handle_move(data):
-    direction = data['direction']
-    if direction in ['left', 'right', 'forward', 'backward']:
-        move(direction)
-    elif direction == 'stop':
-        stop()
+        # Преобразуем кадр в формат RGB
+        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
 
-# WebRTC: Установление соединения
-@socketio.on('offer')
-async def handle_offer(data):
+        # Возвращаем кадр в формате VideoFrame
+        from av import VideoFrame
+        video_frame = VideoFrame.from_ndarray(frame, format="rgb24")
+        video_frame.pts = pts
+        video_frame.time_base = time_base
+        return video_frame
+
+pcs = set()  # Список подключений
+
+async def index(request):
+    """Отправляем HTML-страницу."""
+    return web.FileResponse('./templates/index.html')
+
+async def offer(request):
+    """Обрабатываем SDP-офер от клиента."""
+    params = await request.json()
+    offer = RTCSessionDescription(sdp=params["sdp"], type=params["type"])
+
     pc = RTCPeerConnection()
-    pc.addTrack(camera)
-    await pc.setRemoteDescription(data['offer'])
+    pcs.add(pc)
+
+    @pc.on("connectionstatechange")
+    async def on_connectionstatechange():
+        if pc.connectionState == "failed":
+            await pc.close()
+            pcs.discard(pc)
+
+    # Добавляем поток с камеры в соединение
+    pc.addTrack(CameraStream())
+
+    # Отправляем SDP-ответ клиенту
+    await pc.setRemoteDescription(offer)
     answer = await pc.createAnswer()
     await pc.setLocalDescription(answer)
-    socketio.emit('answer', {'sdp': answer.sdp, 'type': answer.type})
 
-if __name__ == '__main__':
-    socketio.run(app, host='0.0.0.0', port=5000)
+    return web.json_response(
+        {"sdp": pc.localDescription.sdp, "type": pc.localDescription.type}
+    )
+
+async def cleanup(app):
+    """Закрываем все соединения при завершении работы."""
+    for pc in pcs
