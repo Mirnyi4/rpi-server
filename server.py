@@ -59,4 +59,13 @@ async def offer(request):
 
 async def cleanup(app):
     """Закрываем все соединения при завершении работы."""
-    for pc in pcs
+    for pc in pcs:  # Исправление: добавлено двоеточие
+        await pc.close()
+
+app = web.Application()
+app.on_shutdown.append(cleanup)
+app.router.add_get("/", index)
+app.router.add_post("/offer", offer)
+
+if __name__ == "__main__":
+    web.run_app(app, host="0.0.0.0", port=5000)
