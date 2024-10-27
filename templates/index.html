@@ -15,10 +15,25 @@
 
         ws.onopen = () => {
             console.log('WebSocket соединение установлено');
+
+            // Создание offer
+            const offer = {
+                event: "offer",
+                type: "offer",
+                sdp: null
+            };
+
+            ws.send(JSON.stringify(offer));
         };
 
-        ws.onmessage = (message) => {
-            // Логика обработки сообщений
+        ws.onmessage = async (message) => {
+            const data = JSON.parse(message.data);
+            if (data.event === "answer") {
+                // Здесь вы должны установить локальное описание
+                console.log("Received answer:", data);
+            } else if (data.event === "icecandidate") {
+                console.log("Received ICE candidate:", data.candidate);
+            }
         };
 
         ws.onclose = () => {
