@@ -3,31 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Car Control</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.min.js"></script>
+    <title>Raspberry Pi WebRTC Stream</title>
 </head>
 <body>
-    <h1>Управление машинкой</h1>
-    <button onclick="move('forward')">Вперед</button>
-    <button onclick="move('backward')">Назад</button>
-    <button onclick="move('left')">Влево</button>
-    <button onclick="move('right')">Вправо</button>
-    <button onclick="move('stop')">Стоп</button>
-
-    <h2>Видеопоток</h2>
+    <h1>Видео с Raspberry Pi</h1>
     <video id="video" autoplay playsinline></video>
-
     <script>
-        const socket = io();
-        
-        function move(direction) {
-            socket.emit('move', { direction: direction });
-        }
+        const video = document.getElementById('video');
 
-        // Установление WebRTC-соединения
         async function startWebRTC() {
             const pc = new RTCPeerConnection();
-            const video = document.getElementById('video');
 
             pc.ontrack = (event) => {
                 video.srcObject = event.streams[0];
@@ -36,11 +21,13 @@
             const offer = await pc.createOffer();
             await pc.setLocalDescription(offer);
 
-            socket.emit('offer', { offer: offer });
-
-            socket.on('answer', async (data) => {
-                await pc.setRemoteDescription(data);
+            const response = await fetch('/offer', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(pc.localDescription)
             });
+            const answer = await response.json();
+            await pc.setRemoteDescription(answer);
         }
 
         startWebRTC();
