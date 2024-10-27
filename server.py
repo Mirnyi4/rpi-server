@@ -1,38 +1,30 @@
 import asyncio
 from aiohttp import web
-from aiortc import RTCPeerConnection, RTCSessionDescription, VideoStreamTrack
-import cv2
+from aiortc import RTCPeerConnection, RTCSessionDescription, MediaStreamTrack
+from aiortc.contrib.media import MediaBlackhole, MediaPlayer
 
-class CameraStream(VideoStreamTrack):
-    """Класс для передачи кадров с камеры через WebRTC."""
+# Трек для передачи видео с помощью GStreamer
+class CameraStream(MediaStreamTrack):
+    kind = "video"
+
     def __init__(self):
         super().__init__()
-        self.cap = cv2.VideoCapture(0)  # Используем камеру /dev/video0
+        # Используем GStreamer для захвата видео
+        self.player = MediaPlayer(
+            "libcamerasrc ! video/x-raw, width=640, height=480, framerate=30/1 ! videoconvert ! appsink",
+            format="raw"
+        )
 
     async def recv(self):
-        pts, time_base = await self.next_timestamp()
-        ret, frame = self.cap.read()
-        if not ret:
-            return
+        frame = await self.player.video.recv()
+        return frame
 
-        # Преобразуем кадр в формат RGB
-        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-
-        # Возвращаем кадр в формате VideoFrame
-        from av import VideoFrame
-        video_frame = VideoFrame.from_ndarray(frame, format="rgb24")
-        video_frame.pts = pts
-        video_frame.time_base = time_base
-        return video_frame
-
-pcs = set()  # Список подключений
+pcs = set()
 
 async def index(request):
-    """Отправляем HTML-страницу."""
     return web.FileResponse('./templates/index.html')
 
 async def offer(request):
-    """Обрабатываем SDP-офер от клиента."""
     params = await request.json()
     offer = RTCSessionDescription(sdp=params["sdp"], type=params["type"])
 
@@ -45,21 +37,21 @@ async def offer(request):
             await pc.close()
             pcs.discard(pc)
 
-    # Добавляем поток с камеры в соединение
-    pc.addTrack(CameraStream())
+    # Добавляем поток камеры
+    video_track = CameraStream()
+    pc.addTrack(video_track)
 
-    # Отправляем SDP-ответ клиенту
     await pc.setRemoteDescription(offer)
     answer = await pc.createAnswer()
     await pc.setLocalDescription(answer)
+    print("Local Description set:", pc.localDescription)
 
     return web.json_response(
         {"sdp": pc.localDescription.sdp, "type": pc.localDescription.type}
     )
 
 async def cleanup(app):
-    """Закрываем все соединения при завершении работы."""
-    for pc in pcs:  # Исправление: добавлено двоеточие
+    for pc in pcs:
         await pc.close()
 
 app = web.Application()
