@@ -51,20 +51,21 @@ async def websocket_handler(request):
     pc = await create_peer_connection(websocket)
 
     async for msg in websocket:
-        data = json.loads(msg)
-        if data["event"] == "offer":
-            offer = RTCSessionDescription(sdp=data["sdp"], type=data["type"])
-            await pc.setRemoteDescription(offer)
+        if msg.type == web.WSMsgType.TEXT:
+            data = json.loads(msg.data)  # Исправление здесь
+            if data["event"] == "offer":
+                offer = RTCSessionDescription(sdp=data["sdp"], type=data["type"])
+                await pc.setRemoteDescription(offer)
 
-            # Создание ответа
-            answer = await pc.createAnswer()
-            await pc.setLocalDescription(answer)
+                # Создание ответа
+                answer = await pc.createAnswer()
+                await pc.setLocalDescription(answer)
 
-            await websocket.send(json.dumps({
-                "event": "answer",
-                "sdp": pc.localDescription.sdp,
-                "type": pc.localDescription.type,
-            }))
+                await websocket.send(json.dumps({
+                    "event": "answer",
+                    "sdp": pc.localDescription.sdp,
+                    "type": pc.localDescription.type,
+                }))
 
     return websocket
 
