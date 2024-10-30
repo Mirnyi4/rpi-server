@@ -1,10 +1,9 @@
 import RPi.GPIO as GPIO
+from flask import Flask, render_template, request
 import time
 
-# Устанавливаем физическую нумерацию пинов
+# Настройка GPIO
 GPIO.setmode(GPIO.BOARD)
-
-# Используем новые безопасные пины
 pins = {
     'w': 12,  # GPIO 18 - Вперед
     's': 16,  # GPIO 23 - Назад
@@ -12,35 +11,34 @@ pins = {
     'd': 22   # GPIO 25 - Вправо
 }
 
-# Настраиваем пины как выходы
-try:
-    for pin in pins.values():
-        print(f"Настраиваю пин {pin}")
-        GPIO.setup(pin, GPIO.OUT)
-        GPIO.output(pin, GPIO.LOW)
-except ValueError as e:
-    print(f"Ошибка при настройке пина: {e}")
-    GPIO.cleanup()
-    exit(1)
+# Настраиваем пины как выходы и выключаем их
+for pin in pins.values():
+    GPIO.setup(pin, GPIO.OUT)
+    GPIO.output(pin, GPIO.LOW)
 
-print("Пины успешно настроены. Используйте WASD для управления.")
+app = Flask(__name__)
 
-# Функция для включения и выключения пина
+# Функция активации пина
 def activate_pin(pin):
     GPIO.output(pin, GPIO.HIGH)
     time.sleep(0.5)
     GPIO.output(pin, GPIO.LOW)
 
-try:
-    while True:
-        command = input("Введите команду (w/a/s/d): ").strip().lower()
-        if command in pins:
-            activate_pin(pins[command])
-        elif command == "q":
-            print("Выход.")
-            break
-        else:
-            print("Неизвестная команда. Используйте w/a/s/d или q для выхода.")
-finally:
-    GPIO.cleanup()
-    print("GPIO очищены.")
+# Маршрут для главной страницы
+@app.route('/')
+def index():
+    return render_template('index.html')
+
+# Маршрут для получения команд управления
+@app.route('/control', methods=['POST'])
+def control():
+    direction = request.form['direction']
+    if direction in pins:
+        activate_pin(pins[direction])
+    return '', 204  # Пустой ответ с кодом 204 (успех, без контента)
+
+if __name__ == '__main__':
+    try:
+        app.run(host='0.0.0.0', port=5000)
+    finally:
+        GPIO.cleanup()  # Очищаем пины при завершении работы
