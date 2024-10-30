@@ -3,44 +3,28 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Car Control</title>
-    <style>
-        button {
-            width: 80px;
-            height: 80px;
-            font-size: 24px;
-            margin: 10px;
-        }
-    </style>
+    <title>Управление машинкой</title>
     <script>
+        // Отправляем команду на сервер
         function sendCommand(direction) {
             fetch('/control', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                body: 'direction=' + direction
+                body: `direction=${direction}`
             });
         }
 
-        function stop() {
-            fetch('/stop', { method: 'POST' });
-        }
-
+        // Обработчик нажатий клавиш
         document.addEventListener('keydown', (event) => {
-            if (event.key === 'w') sendCommand('forward');
-            if (event.key === 's') sendCommand('backward');
-            if (event.key === 'a') sendCommand('left');
-            if (event.key === 'd') sendCommand('right');
+            const key = event.key.toLowerCase();
+            if (['w', 'a', 's', 'd'].includes(key)) {
+                sendCommand(key);
+            }
         });
-
-        document.addEventListener('keyup', stop);
     </script>
 </head>
 <body>
-    <h1>Car Control</h1>
-    <button onclick="sendCommand('forward')">W</button><br>
-    <button onclick="sendCommand('left')">A</button>
-    <button onclick="sendCommand('stop')">Stop</button>
-    <button onclick="sendCommand('right')">D</button><br>
-    <button onclick="sendCommand('backward')">S</button>
+    <h1>Управление машинкой с помощью WASD</h1>
+    <p>Нажимайте клавиши <strong>W</strong>, <strong>A</strong>, <strong>S</strong>, <strong>D</strong> для управления.</p>
 </body>
 </html>
