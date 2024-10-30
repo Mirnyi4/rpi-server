@@ -1,70 +1,35 @@
-import asyncio
-from aiohttp import web
-from aiortc import RTCPeerConnection, RTCSessionDescription, MediaStreamTrack
-from aiortc.contrib.media import MediaRelay
-import subprocess
+from flask import Flask, render_template, request
+import RPi.GPIO as GPIO
 
-relay = MediaRelay()
+# Настраиваем GPIO
+GPIO.setmode(GPIO.BOARD)
+pins = {"forward": 12, "backward": 14, "left": 16, "right": 17}
+for pin in pins.values():
+    GPIO.setup(pin, GPIO.OUT)
+    GPIO.output(pin, GPIO.LOW)
 
-class CameraStream(MediaStreamTrack):
-    kind = "video"
+# Запуск Flask-сервера
+app = Flask(__name__)
 
-    def __init__(self):
-        super().__init__()
-        # Запускаем GStreamer как отдельный процесс
-        self.process = subprocess.Popen(
-            [
-                "gst-launch-1.0", "libcamerasrc", "!", 
-                "video/x-raw,width=640,height=480,framerate=30/1", "!",
-                "videoconvert", "!", "queue", "!", 
-                "vp8enc", "!", "rtpvp8pay", "!", 
-                "udpsink", "host=127.0.0.1", "port=5004"
-            ],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE
-        )
+@app.route('/')
+def index():
+    return render_template('index.html')
 
-    async def recv(self):
-        frame = await relay.subscribe(self).recv()
-        return frame
+@app.route('/control', methods=['POST'])
+def control():
+    direction = request.form.get('direction')
+    if direction in pins:
+        GPIO.output(pins[direction], GPIO.HIGH)
+    return '', 204
 
-pcs = set()
+@app.route('/stop', methods=['POST'])
+def stop():
+    for pin in pins.values():
+        GPIO.output(pin, GPIO.LOW)
+    return '', 204
 
-async def index(request):
-    return web.FileResponse('./templates/index.html')
-
-async def offer(request):
-    params = await request.json()
-    offer = RTCSessionDescription(sdp=params["sdp"], type=params["type"])
-
-    pc = RTCPeerConnection()
-    pcs.add(pc)
-
-    @pc.on("connectionstatechange")
-    async def on_connectionstatechange():
-        if pc.connectionState == "failed":
-            await pc.close()
-            pcs.discard(pc)
-
-    video_track = CameraStream()
-    pc.addTrack(video_track)
-
-    await pc.setRemoteDescription(offer)
-    answer = await pc.createAnswer()
-    await pc.setLocalDescription(answer)
-
-    return web.json_response(
-        {"sdp": pc.localDescription.sdp, "type": pc.localDescription.type}
-    )
-
-async def cleanup(app):
-    for pc in pcs:
-        await pc.close()
-
-app = web.Application()
-app.on_shutdown.append(cleanup)
-app.router.add_get("/", index)
-app.router.add_post("/offer", offer)
-
-if __name__ == "__main__":
-    web.run_app(app, host="0.0.0.0", port=5000)
+if __name__ == '__main__':
+    try:
+        app.run(host='0.0.0.0', port=8080)
+    finally:
+        GPIO.cleanup()
