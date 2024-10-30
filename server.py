@@ -1,20 +1,32 @@
 import RPi.GPIO as GPIO
 import time
 
-# Устанавливаем режим нумерации: физические номера пинов
+# Устанавливаем физическую нумерацию пинов
 GPIO.setmode(GPIO.BOARD)
 
-# Настраиваем пины 12, 14, 16, 17 как выходы
-pins = {"forward": 12, "backward": 14, "left": 16, "right": 17}
+# Используем новые безопасные пины
+pins = {
+    'w': 12,  # GPIO 18 - Вперед
+    's': 16,  # GPIO 23 - Назад
+    'a': 18,  # GPIO 24 - Влево
+    'd': 22   # GPIO 25 - Вправо
+}
 
-for pin in pins.values():
-    GPIO.setup(pin, GPIO.OUT)
-    GPIO.output(pin, GPIO.LOW)
+# Настраиваем пины как выходы
+try:
+    for pin in pins.values():
+        print(f"Настраиваю пин {pin}")
+        GPIO.setup(pin, GPIO.OUT)
+        GPIO.output(pin, GPIO.LOW)
+except ValueError as e:
+    print(f"Ошибка при настройке пина: {e}")
+    GPIO.cleanup()
+    exit(1)
 
-print("Пины настроены: 12, 14, 16, 17.")
+print("Пины успешно настроены. Используйте WASD для управления.")
 
-# Функции управления движением
-def move(pin):
+# Функция для включения и выключения пина
+def activate_pin(pin):
     GPIO.output(pin, GPIO.HIGH)
     time.sleep(0.5)
     GPIO.output(pin, GPIO.LOW)
@@ -22,14 +34,8 @@ def move(pin):
 try:
     while True:
         command = input("Введите команду (w/a/s/d): ").strip().lower()
-        if command == "w":
-            move(pins["forward"])
-        elif command == "s":
-            move(pins["backward"])
-        elif command == "a":
-            move(pins["left"])
-        elif command == "d":
-            move(pins["right"])
+        if command in pins:
+            activate_pin(pins[command])
         elif command == "q":
             print("Выход.")
             break
