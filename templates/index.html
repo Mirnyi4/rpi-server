@@ -1,44 +1,46 @@
 <!DOCTYPE html>
-<html lang="ru">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Трансляция WebRTC</title>
+    <title>Car Control</title>
+    <style>
+        button {
+            width: 80px;
+            height: 80px;
+            font-size: 24px;
+            margin: 10px;
+        }
+    </style>
+    <script>
+        function sendCommand(direction) {
+            fetch('/control', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: 'direction=' + direction
+            });
+        }
+
+        function stop() {
+            fetch('/stop', { method: 'POST' });
+        }
+
+        document.addEventListener('keydown', (event) => {
+            if (event.key === 'w') sendCommand('forward');
+            if (event.key === 's') sendCommand('backward');
+            if (event.key === 'a') sendCommand('left');
+            if (event.key === 'd') sendCommand('right');
+        });
+
+        document.addEventListener('keyup', stop);
+    </script>
 </head>
 <body>
-    <h1>Трансляция видео с Raspberry Pi через WebRTC</h1>
-    <video id="video" autoplay playsinline></video>
-
-    <script>
-        const video = document.getElementById('video');
-        const ws = new WebSocket('ws://192.168.0.174:8080/ws'); // Используем IP-адрес вашего сервера
-
-        ws.onopen = () => {
-            console.log('WebSocket соединение установлено');
-
-            // Создание offer
-            const offer = {
-                event: "offer",
-                type: "offer",
-                sdp: null
-            };
-
-            ws.send(JSON.stringify(offer));
-        };
-
-        ws.onmessage = async (message) => {
-            const data = JSON.parse(message.data);
-            if (data.event === "answer") {
-                // Здесь вы должны установить локальное описание
-                console.log("Received answer:", data);
-            } else if (data.event === "icecandidate") {
-                console.log("Received ICE candidate:", data.candidate);
-            }
-        };
-
-        ws.onclose = () => {
-            console.log('WebSocket соединение закрыто');
-        };
-    </script>
+    <h1>Car Control</h1>
+    <button onclick="sendCommand('forward')">W</button><br>
+    <button onclick="sendCommand('left')">A</button>
+    <button onclick="sendCommand('stop')">Stop</button>
+    <button onclick="sendCommand('right')">D</button><br>
+    <button onclick="sendCommand('backward')">S</button>
 </body>
 </html>
