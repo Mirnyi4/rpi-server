@@ -12,7 +12,7 @@ pins = {
     'ena': 8  # GPIO 8 - Управление ENA
 }
 
-# Настраиваем пины как выходы и выключаем их
+# Настроим пины как выходы и выключим их
 for pin in pins.values():
     GPIO.setup(pin, GPIO.OUT)
     GPIO.output(pin, GPIO.LOW)
@@ -27,10 +27,9 @@ def activate_pin(pin):
 def deactivate_pin(pin):
     GPIO.output(pin, GPIO.LOW)
 
-# Функция для регулирования ENA
+# Функция для управления ENA
 def control_ena(value):
-    pwm_value = int(value)
-    duty_cycle = pwm_value / 100.0
+    duty_cycle = int(value) / 100.0
     if duty_cycle > 0:
         GPIO.output(pins['ena'], GPIO.HIGH)
     else:
@@ -57,7 +56,7 @@ def control_ena_route():
     control_ena(value)
     return '', 204  # Пустой ответ с кодом 204 (успех, без контента)
 
-# Маршрут для отключения пинов при отпускании клавиш
+# Маршрут для остановки движения
 @app.route('/stop_control', methods=['POST'])
 def stop_control():
     directions = request.form.getlist('direction')
