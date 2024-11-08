@@ -5,37 +5,18 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Управление машинкой</title>
     <script>
-        // Массив для хранения нажатых клавиш
-        let pressedKeys = [];
+        let pressedKeys = new Set();  // Множество для хранения текущих нажатых клавиш
 
         // Отправляем команду на сервер
         function sendCommand() {
             fetch('/control', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                body: `direction=${pressedKeys.join(',')}`  // Отправляем все нажатые клавиши
+                body: `direction=${[...pressedKeys].join(',')}`  // Отправляем все нажатые клавиши
             });
         }
 
-        // Обработчик нажатий клавиш
-        document.addEventListener('keydown', (event) => {
-            const key = event.key.toLowerCase();
-            if (['w', 'a', 's', 'd'].includes(key) && !pressedKeys.includes(key)) {
-                pressedKeys.push(key);
-                sendCommand();  // Отправляем обновленный список
-            }
-        });
-
-        // Обработчик отпускания клавиш
-        document.addEventListener('keyup', (event) => {
-            const key = event.key.toLowerCase();
-            if (['w', 'a', 's', 'd'].includes(key)) {
-                pressedKeys = pressedKeys.filter(k => k !== key);  // Убираем клавишу из списка
-                sendCommand();  // Отправляем обновленный список
-            }
-        });
-
-        // Функция для отправки значения ENA
+        // Отправка значения ENA на сервер
         function sendENA(value) {
             fetch('/control_ena', {
                 method: 'POST',
@@ -43,6 +24,25 @@
                 body: `value=${value}`
             });
         }
+
+        // Обработчик нажатий клавиш
+        document.addEventListener('keydown', (event) => {
+            const key = event.key.toLowerCase();
+            if (['w', 'a', 's', 'd'].includes(key)) {
+                pressedKeys.add(key);  // Добавляем клавишу в множество
+                sendCommand();  // Отправляем обновленное состояние
+            }
+        });
+
+        // Обработчик отпускания клавиш
+        document.addEventListener('keyup', (event) => {
+            const key = event.key.toLowerCase();
+            if (['w', 'a', 's', 'd'].includes(key)) {
+                pressedKeys.delete(key);  // Убираем клавишу из множества
+                sendCommand();  // Отправляем обновленное состояние
+            }
+        });
+
     </script>
 </head>
 <body>
