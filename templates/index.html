@@ -8,7 +8,7 @@
         // Массив для хранения нажатых клавиш
         let pressedKeys = [];
 
-        // Отправляем команду на сервер для управления движением
+        // Отправляем команду на сервер
         function sendCommand() {
             fetch('/control', {
                 method: 'POST',
@@ -31,9 +31,24 @@
             const key = event.key.toLowerCase();
             if (['w', 'a', 's', 'd'].includes(key)) {
                 pressedKeys = pressedKeys.filter(k => k !== key);  // Убираем клавишу из списка
+                // Отправляем команду, чтобы остановить движение
+                fetch('/stop_control', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: `direction=${key}`
+                });
                 sendCommand();  // Отправляем обновленный список
             }
         });
+
+        // Функция для отправки значения ENA
+        function sendENA(value) {
+            fetch('/control_ena', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: `value=${value}`
+            });
+        }
     </script>
 </head>
 <body>
@@ -42,8 +57,11 @@
 
     <!-- Ползунок для управления ENA -->
     <h2>Управление ENA</h2>
-    <label for="enaControl">Регулировка ENA: </label>
-    <input type="range" id="enaControl" min="0" max="1" step="1" onchange="sendENA(this.value == '1' ? 'on' : 'off')">
-    <p>Текущее значение ENA: <span id="enaValue">Off</span></p>
+    <label for="enaControl">Выберите значение ENA: </label>
+    <select id="enaControl" onchange="sendENA(this.value)">
+        <option value="20">20%</option>
+        <option value="50">50%</option>
+        <option value="100">100%</option>
+    </select>
 </body>
 </html>
