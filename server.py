@@ -43,10 +43,9 @@ def index():
 # Маршрут для получения команд управления
 @app.route('/control', methods=['POST'])
 def control():
-    directions = request.form.getlist('direction')  # Получаем список направлений
-    for direction in directions:
-        if direction in pins:
-            activate_pin(pins[direction])
+    direction = request.form['direction']
+    if direction in pins:
+        activate_pin(pins[direction])
     return '', 204  # Пустой ответ с кодом 204 (успех, без контента)
 
 # Маршрут для управления ENA с выбором значения
