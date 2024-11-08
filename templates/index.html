@@ -4,58 +4,34 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Управление машинкой</title>
-    <script>
-        let pressedKeys = new Set();  // Множество для хранения текущих нажатых клавиш
+    <style>
+        .controls {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
 
-        // Отправляем команду на сервер
-        function sendCommand() {
+        .row {
+            display: flex;
+            justify-content: center;
+            margin: 10px;
+        }
+
+        .button {
+            width: 80px;
+            height: 80px;
+            font-size: 20px;
+            margin: 5px;
+            border-radius: 50%;
+        }
+
+        .slider {
+            margin-top: 20px;
+        }
+    </style>
+    <script>
+        // Функция для отправки команды на сервер
+        function sendCommand(direction) {
             fetch('/control', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                body: `direction=${[...pressedKeys].join(',')}`  // Отправляем все нажатые клавиши
-            });
-        }
-
-        // Отправка значения ENA на сервер
-        function sendENA(value) {
-            fetch('/control_ena', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                body: `value=${value}`
-            });
-        }
-
-        // Обработчик нажатий клавиш
-        document.addEventListener('keydown', (event) => {
-            const key = event.key.toLowerCase();
-            if (['w', 'a', 's', 'd'].includes(key)) {
-                pressedKeys.add(key);  // Добавляем клавишу в множество
-                sendCommand();  // Отправляем обновленное состояние
-            }
-        });
-
-        // Обработчик отпускания клавиш
-        document.addEventListener('keyup', (event) => {
-            const key = event.key.toLowerCase();
-            if (['w', 'a', 's', 'd'].includes(key)) {
-                pressedKeys.delete(key);  // Убираем клавишу из множества
-                sendCommand();  // Отправляем обновленное состояние
-            }
-        });
-
-    </script>
-</head>
-<body>
-    <h1>Управление машинкой с помощью WASD</h1>
-    <p>Нажимайте клавиши <strong>W</strong>, <strong>A</strong>, <strong>S</strong>, <strong>D</strong> для управления.</p>
-
-    <!-- Ползунок для управления ENA -->
-    <h2>Управление ENA</h2>
-    <label for="enaControl">Выберите значение ENA: </label>
-    <select id="enaControl" onchange="sendENA(this.value)">
-        <option value="20">20%</option>
-        <option value="50">50%</option>
-        <option value="100">100%</option>
-    </select>
-</body>
-</html>
+                headers: { 
