@@ -5,20 +5,33 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Управление машинкой</title>
     <script>
-        // Отправляем команду на сервер
-        function sendCommand(direction) {
+        // Массив для хранения нажатых клавиш
+        let pressedKeys = [];
+
+        // Отправляем команду на сервер для управления движением
+        function sendCommand() {
             fetch('/control', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                body: `direction=${direction}`
+                body: `direction=${pressedKeys.join(',')}`  // Отправляем все нажатые клавиши
             });
         }
 
         // Обработчик нажатий клавиш
         document.addEventListener('keydown', (event) => {
             const key = event.key.toLowerCase();
+            if (['w', 'a', 's', 'd'].includes(key) && !pressedKeys.includes(key)) {
+                pressedKeys.push(key);
+                sendCommand();  // Отправляем обновленный список
+            }
+        });
+
+        // Обработчик отпускания клавиш
+        document.addEventListener('keyup', (event) => {
+            const key = event.key.toLowerCase();
             if (['w', 'a', 's', 'd'].includes(key)) {
-                sendCommand(key);
+                pressedKeys = pressedKeys.filter(k => k !== key);  // Убираем клавишу из списка
+                sendCommand();  // Отправляем обновленный список
             }
         });
     </script>
@@ -26,5 +39,11 @@
 <body>
     <h1>Управление машинкой с помощью WASD</h1>
     <p>Нажимайте клавиши <strong>W</strong>, <strong>A</strong>, <strong>S</strong>, <strong>D</strong> для управления.</p>
+
+    <!-- Ползунок для управления ENA -->
+    <h2>Управление ENA</h2>
+    <label for="enaControl">Регулировка ENA: </label>
+    <input type="range" id="enaControl" min="0" max="1" step="1" onchange="sendENA(this.value == '1' ? 'on' : 'off')">
+    <p>Текущее значение ENA: <span id="enaValue">Off</span></p>
 </body>
 </html>
