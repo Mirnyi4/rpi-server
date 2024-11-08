@@ -29,11 +29,10 @@ def deactivate_pin(pin):
 
 # Функция для управления ENA
 def control_ena(value):
-    duty_cycle = int(value) / 100.0
-    if duty_cycle > 0:
-        GPIO.output(pins['ena'], GPIO.HIGH)
+    if value != "0":
+        GPIO.output(pins['ena'], GPIO.HIGH)  # Включаем ENA
     else:
-        GPIO.output(pins['ena'], GPIO.LOW)
+        GPIO.output(pins['ena'], GPIO.LOW)  # Выключаем ENA
 
 # Маршрут для главной страницы
 @app.route('/')
@@ -48,7 +47,7 @@ def control():
         activate_pin(pins[direction])
     return '', 204  # Пустой ответ с кодом 204 (успех, без контента)
 
-# Маршрут для управления ENA с выбором значения
+# Маршрут для управления ENA
 @app.route('/control_ena', methods=['POST'])
 def control_ena_route():
     value = request.form['value']
