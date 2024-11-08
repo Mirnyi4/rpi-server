@@ -31,12 +31,6 @@
             const key = event.key.toLowerCase();
             if (['w', 'a', 's', 'd'].includes(key)) {
                 pressedKeys = pressedKeys.filter(k => k !== key);  // Убираем клавишу из списка
-                // Отправляем команду, чтобы остановить движение
-                fetch('/stop_control', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                    body: `direction=${key}`
-                });
                 sendCommand();  // Отправляем обновленный список
             }
         });
