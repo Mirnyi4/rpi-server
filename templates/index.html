@@ -34,4 +34,54 @@
         function sendCommand(direction) {
             fetch('/control', {
                 method: 'POST',
-                headers: { 
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: `direction=${direction}`
+            });
+        }
+
+        // Функция для управления ENA
+        function sendENA(value) {
+            fetch('/control_ena', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: `value=${value}`
+            });
+        }
+
+        // Функция для остановки всех движений
+        function stopControl() {
+            fetch('/stop_control', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: `direction=w,s,a,d`
+            });
+        }
+    </script>
+</head>
+<body>
+    <h1>Управление машинкой</h1>
+
+    <div class="controls">
+        <div class="row">
+            <button class="button" onclick="sendCommand('w')">Вперед</button>
+        </div>
+        <div class="row">
+            <button class="button" onclick="sendCommand('a')">Влево</button>
+            <button class="button" onclick="sendCommand('s')">Назад</button>
+            <button class="button" onclick="sendCommand('d')">Вправо</button>
+        </div>
+        <div class="row">
+            <button class="button" onclick="stopControl()">Стоп</button>
+        </div>
+
+        <div class="slider">
+            <label for="enaControl">Выберите значение ENA: </label>
+            <select id="enaControl" onchange="sendENA(this.value)">
+                <option value="0">0%</option>
+                <option value="50">50%</option>
+                <option value="100">100%</option>
+            </select>
+        </div>
+    </div>
+</body>
+</html>
