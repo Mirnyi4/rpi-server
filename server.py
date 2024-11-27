@@ -1,6 +1,5 @@
 import RPi.GPIO as GPIO
 from flask import Flask, render_template, request
-import time
 
 # Настройка GPIO
 GPIO.setmode(GPIO.BOARD)
@@ -21,7 +20,9 @@ app = Flask(__name__)
 # Функция активации пина
 def activate_pin(pin):
     GPIO.output(pin, GPIO.HIGH)
-    time.sleep(0.5)
+
+# Функция деактивации пина
+def deactivate_pin(pin):
     GPIO.output(pin, GPIO.LOW)
 
 # Маршрут для главной страницы
@@ -35,6 +36,13 @@ def control():
     direction = request.form['direction']
     if direction in pins:
         activate_pin(pins[direction])
+    return '', 204  # Пустой ответ с кодом 204 (успех, без контента)
+
+# Маршрут для остановки движения
+@app.route('/stop', methods=['POST'])
+def stop():
+    for pin in pins.values():
+        deactivate_pin(pin)
     return '', 204  # Пустой ответ с кодом 204 (успех, без контента)
 
 if __name__ == '__main__':
