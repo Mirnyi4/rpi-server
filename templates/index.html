@@ -4,84 +4,27 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Управление машинкой</title>
-    <style>
-        .controls {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-        }
-
-        .row {
-            display: flex;
-            justify-content: center;
-            margin: 10px;
-        }
-
-        .button {
-            width: 80px;
-            height: 80px;
-            font-size: 20px;
-            margin: 5px;
-            border-radius: 50%;
-        }
-
-        .slider {
-            margin-top: 20px;
-        }
-    </style>
     <script>
-        // Функция для отправки команды на сервер
+        // Отправляем команду на сервер
         function sendCommand(direction) {
             fetch('/control', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                body: `direction=${direction}`
+                body: direction=${direction}
             });
         }
 
-        // Функция для управления ENA
-        function sendENA(value) {
-            fetch('/control_ena', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                body: `value=${value}`
-            });
-        }
-
-        // Функция для остановки всех движений
-        function stopControl() {
-            fetch('/stop_control', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                body: `direction=w,s,a,d`
-            });
-        }
+        // Обработчик нажатий клавиш
+        document.addEventListener('keydown', (event) => {
+            const key = event.key.toLowerCase();
+            if (['w', 'a', 's', 'd'].includes(key)) {
+                sendCommand(key);
+            }
+        });
     </script>
 </head>
 <body>
-    <h1>Управление машинкой</h1>
-
-    <div class="controls">
-        <div class="row">
-            <button class="button" onclick="sendCommand('w')">Вперед</button>
-        </div>
-        <div class="row">
-            <button class="button" onclick="sendCommand('a')">Влево</button>
-            <button class="button" onclick="sendCommand('s')">Назад</button>
-            <button class="button" onclick="sendCommand('d')">Вправо</button>
-        </div>
-        <div class="row">
-            <button class="button" onclick="stopControl()">Стоп</button>
-        </div>
-
-        <div class="slider">
-            <label for="enaControl">Выберите значение ENA: </label>
-            <select id="enaControl" onchange="sendENA(this.value)">
-                <option value="0">0%</option>
-                <option value="50">50%</option>
-                <option value="100">100%</option>
-            </select>
-        </div>
-    </div>
+    <h1>Управление машинкой с помощью WASD</h1>
+    <p>Нажимайте клавиши <strong>W</strong>, <strong>A</strong>, <strong>S</strong>, <strong>D</strong> для управления.</p>
 </body>
 </html>
