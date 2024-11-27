@@ -41,35 +41,4 @@ if __name__ == '__main__':
     try:
         app.run(host='0.0.0.0', port=5000)
     finally:
-        GPIO.cleanup()  # Очищаем пины при завершении работы
-Надо добавить управление ЕНА через какой то гпио, и добавить ползунок управления на хтмл 
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Управление машинкой</title>
-    <script>
-        // Отправляем команду на сервер
-        function sendCommand(direction) {
-            fetch('/control', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                body: direction=${direction}
-            });
-        }
-
-        // Обработчик нажатий клавиш
-        document.addEventListener('keydown', (event) => {
-            const key = event.key.toLowerCase();
-            if (['w', 'a', 's', 'd'].includes(key)) {
-                sendCommand(key);
-            }
-        });
-    </script>
-</head>
-<body>
-    <h1>Управление машинкой с помощью WASD</h1>
-    <p>Нажимайте клавиши <strong>W</strong>, <strong>A</strong>, <strong>S</strong>, <strong>D</strong> для управления.</p>
-</body>
-</html>
+        GPIO.cleanup()  # Очищаем пины при завершении работ
